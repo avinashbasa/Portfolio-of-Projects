@@ -1,0 +1,59 @@
+from twilio.rest import Client
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import random as rd
+import time
+
+
+amazon_df = pd.read_excel('Amazon_products.xlsx',sheet_name = 'Data') # file holds the relevant data points for the screening
+
+
+## Amazon webscraping
+def return_price(item_address):
+	header_values = {
+	    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
+	    'Accept-Encoding':	'gzip, deflate',
+	    'Accept-Language':	'en-US,en;q=0.9,hi;q=0.8',
+	    'Connection':	'keep-alive',
+	    # 'Host':	'www.amazon.com',
+	    'Referer':	'https://www.google.com/',
+	    'Upgrade-Insecure-Requests':	'1',
+	    'User-Agent':	'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36'
+	}
+
+	response = requests.get(item_address, headers = header_values)
+	response_text= response.text   
+
+	soup = BeautifulSoup(response_text,'lxml')
+	price = soup.find("span",{"id": "priceblock_ourprice"}).text
+
+	price = float(price[1:len(price)-1])
+
+	return (price) 
+
+##initiate twilio
+account_sid = '' #removed for confidentiality
+auth_token = '' #removed for confidentiality 
+
+myPhone = '' #removed for confidentiality
+TwilioNumber = '' #removed for confidentiality
+
+client = Client(account_sid, auth_token)
+
+
+
+x = 0
+for x in range (0,len(amazon_df)):
+	amazon_df.iat[x,3] = return_price(amazon_df.iloc[x,1])
+
+	if amazon_df.iloc[x,2] > amazon_df.iloc[x,3]:
+	
+		client.messages.create(
+		  to=myPhone,
+		  from_=TwilioNumber,
+		  body='{} is below ${}. Link: {} '.format(amazon_df.iloc[x,0],amazon_df.iloc[x,2],amazon_df.iloc[x,1])
+		  )
+	time.sleep(rd.randint(4,24))
+	x = x+1
+

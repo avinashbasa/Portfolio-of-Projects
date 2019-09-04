@@ -9,34 +9,29 @@ league_id = '' enter league_id here
 swid      = '' enter the SWID here (can be found by opening espn fantasy football in developer mode in Chrome)
 espn_s2   = '' enter the espn_s2 here (can be found by opening espn fantasy football in developer mode in Chrome)
 
+# empty DataFrame with datapoints needed for call statement
 
-#empty DataFrame with datapoints needed for call statement of each year's data. 
+call_df = pd.DataFrame(columns=['Year', 'URL'])
 
-call_df = pd.DataFrame(columns = ['Year','URL'])
-
-
-#set the year you want to start looking at matchup data.
 year = 2009
 
-for year in range(year,2019):
+for year in range(year, 2019):
 	if year <= 2018:
 	    url = "https://fantasy.espn.com/apis/v3/games/ffl/leagueHistory/" + str(league_id) + "?seasonId=" + str(year)
 	else:
 	    url = "https://fantasy.espn.com/apis/v3/games/FFL/seasons/" + str(year) + "/segments/0/leagues/" + str(league_id)		
-	call_df = call_df.append({'Year': year, 'URL': url}, ignore_index = True)
+	call_df = call_df.append({'Year': year, 'URL': url}, ignore_index=True)
 	year += 1
 
+datapoints_df = pd.DataFrame(
+	columns=['Year', 'User_ID', 'User_Team', 'Wins',
+	'Losses', 'Ties', 'Points_Scored', 'Points_Against']
+)
 
+users_df = pd.DataFrame(columns=['User_ID', 'User_Name'])
 
-#two dataframes that will host final data.
-datapoints_df = pd.DataFrame(columns = ['Year','User_ID','User_Team','Wins','Losses','Ties','Points_Scored','Points_Against'])
-users_df = pd.DataFrame(columns = ['User_ID','User_Name'])
-
-
-#loop through the year and URL to download the JSON files.
-for i,j in call_df.iterrows():
-	
-  #variables I want
+for i, j in call_df.iterrows():
+	# variables I want
 	Year = j['Year']
 	User_ID = ''
 	User_Team = ''
@@ -47,51 +42,41 @@ for i,j in call_df.iterrows():
 	Points_Scored = 0
 	Points_Against = 0
 
-
-
-	#extract elements of interest at various levels of the hierarchy.
-
-	r = requests.get(j['URL'], 
-	params={'view': 'mTeam'},
-	cookies={"SWID": swid, "espn_s2": espn_s2})
+	r = requests.get(
+			j['URL'],
+			params={'view': 'mTeam'},
+			cookies={"SWID": swid, "espn_s2": espn_s2}
+	)
 
 	d = r.json()
 
-	d_all = d[0] #preserves all data, but need to do this to start diving into JSON data.
+	d_all = d[0]  # preserves all data. no need to loop
 
 	d_teams = d_all['teams']
 	d_members = d_all['members']
 
-  #get a list of all the members who have played in ESPN.
 	member_looper = 0
 	increment = 0
 	member_looper_end = len(d_members)
 
-	for increment in range(member_looper,member_looper_end):
+	for increment in range(member_looper, member_looper_end):
 		d_member = d_members[increment]
 		User_ID = d_member['id']
 		User_Name = d_member['firstName'] + ' ' + d_member['lastName']
 
-		users_df = users_df.append({'User_ID': User_ID, 'User_Name': User_Name}, ignore_index = True)
-
-
-
-
-
-
-
-
-  #get season stats of interest.
+		users_df = users_df.append({'User_ID': User_ID, 'User_Name': User_Name},
+			ignore_index=True
+									)
 
 	team_looper = 0
 	increment = 0
 	team_looper_end = len(d_teams)
 
 	for increment in range(team_looper, team_looper_end):
-		#loop to get stats
+		# loop to get stats
 		d_team = d_teams[increment]
-		User_ID = d_team['primaryOwner'] 		#user_id
-		User_Team = d_team['abbrev']	   		#user_name
+		User_ID = d_team['primaryOwner'] 		# user_id
+		User_Team = d_team['abbrev']	   		# user_name
 
 		d_team_record = d_team['record']
 
@@ -103,14 +88,15 @@ for i,j in call_df.iterrows():
 		Points_Scored = d_team_record_overall['pointsFor']
 		Points_Against = d_team_record_overall['pointsAgainst']
 
+		datapoints_df = datapoints_df.append(
+			{
+			'Year': Year, 'User_ID': User_ID, 'User_Team': User_Team, 'Wins': Wins, 'Losses': Losses,
+			'Ties': Ties, 'Points_Scored': Points_Scored, 'Points_Against': Points_Against
+			}, ignore_index=True
+		)
 
-		datapoints_df = datapoints_df.append({'Year': Year,'User_ID': User_ID,'User_Team': User_Team,'Wins': Wins,'Losses': Losses,'Ties': Ties,'Points_Scored': Points_Scored,'Points_Against': Points_Against}, ignore_index = True)
+users_df_unique = users_df.drop_duplicates(subset=['User_ID', 'User_Name'])
 
+final_df = pd.merge(datapoints_df, users_df_unique, how='inner', left_on='User_ID', right_on='User_ID')
 
-users_df_unique = users_df.drop_duplicates(subset = ['User_ID','User_Name'])
-
-
-final_df = pd.merge(datapoints_df, users_df_unique, how = 'inner', left_on = 'User_ID', right_on = 'User_ID')
-
-final_df.to_excel('Historical_data.xlsx',header = True)
-
+final_df.to_excel('Historical_data.xlsx', header=True)
